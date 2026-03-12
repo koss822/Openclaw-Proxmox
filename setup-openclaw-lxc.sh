@@ -260,6 +260,30 @@ WRAPPER
     mkdir -p /root/Desktop
     cp /usr/share/applications/chromium.desktop /root/Desktop/
     chmod +x /root/Desktop/chromium.desktop
+
+    # Set Chromium as default browser
+    update-alternatives --set x-www-browser /usr/bin/chromium 2>/dev/null || true
+    update-alternatives --set gnome-www-browser /usr/bin/chromium 2>/dev/null || true
+    xdg-settings set default-web-browser chromium.desktop 2>/dev/null || true
+
+    # XFCE preferred applications
+    mkdir -p /root/.config/xfce4
+    cat > /root/.config/xfce4/helpers.rc << 'HELPERS'
+WebBrowser=custom-WebBrowser
+HELPERS
+    mkdir -p /root/.local/share/xfce4/helpers
+    cat > /root/.local/share/xfce4/helpers/custom-WebBrowser.desktop << 'HELPER'
+[Desktop Entry]
+NoDisplay=true
+Version=1.0
+Encoding=UTF-8
+Type=X-XFCE-Helper
+X-XFCE-Binaries=chromium
+X-XFCE-Category=WebBrowser
+Name=Chromium
+X-XFCE-Commands=/usr/bin/chromium --no-sandbox;
+X-XFCE-CommandsWithParameter=/usr/bin/chromium --no-sandbox \"%s\";
+HELPER
 "
 ok "Chromium patched."
 
