@@ -241,7 +241,10 @@ unset DBUS_SESSION_BUS_ADDRESS
 exec startxfce4
 XSTARTUP
 chmod +x /root/.config/tigervnc/xstartup"
-ok "VNC configured."
+
+# Set noVNC scaling to auto by default
+ct_exec "sed -i \"s/UI.initSetting('resize', 'off')/UI.initSetting('resize', 'scale')/\" /usr/share/novnc/app/ui.js"
+ok "VNC configured (auto-scaling enabled)."
 
 # ─── Fix Chromium for LXC (--no-sandbox) ─────────────────────────────────────
 info "Patching Chromium for LXC..."
