@@ -275,12 +275,43 @@ StartupNotify=true
 SHORTCUT
 chmod +x /root/Desktop/openclaw-dashboard.desktop"
 
-# Mark all desktop shortcuts as trusted (suppresses XFCE "Untrusted application" warning)
-ct_exec "
-    for f in /root/Desktop/*.desktop; do
-        gio set \"\$f\" metadata::xfce-exe-checksum \"\$(sha256sum \"\$f\" | cut -d' ' -f1)\"
-    done
-"
+# Mark desktop shortcuts as trusted (runs once after XFCE/DBUS starts via VNC)
+ct_exec "cat > /usr/local/bin/trust-desktop-icons << 'SCRIPT'
+#!/bin/bash
+# Wait for XFCE DBUS session socket to appear
+for i in \$(seq 1 30); do
+    SOCK=\$(find /tmp -maxdepth 1 -name 'dbus-*' -type s 2>/dev/null | head -1)
+    [ -n \"\$SOCK\" ] && break
+    sleep 1
+done
+[ -z \"\$SOCK\" ] && exit 1
+export DBUS_SESSION_BUS_ADDRESS=unix:path=\$SOCK
+for f in /root/Desktop/*.desktop; do
+    gio set \"\$f\" metadata::xfce-exe-checksum \"\$(sha256sum \"\$f\" | cut -d' ' -f1)\" 2>/dev/null
+done
+# Self-disable after first successful run
+systemctl disable trust-desktop-icons.service 2>/dev/null
+SCRIPT
+chmod +x /usr/local/bin/trust-desktop-icons"
+
+ct_exec "cat > /etc/systemd/system/trust-desktop-icons.service << 'SVC'
+[Unit]
+Description=Mark desktop shortcuts as trusted for XFCE
+After=vncserver.service
+Requires=vncserver.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/local/bin/trust-desktop-icons
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SVC
+systemctl daemon-reload
+systemctl enable trust-desktop-icons.service"
+
 ok "Desktop shortcuts created."
 
 # ─── Create systemd services ─────────────────────────────────────────────────
