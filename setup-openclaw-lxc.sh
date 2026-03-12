@@ -183,6 +183,24 @@ ct_exec "
 "
 ok "Node.js installed."
 
+info "Installing Homebrew (required for OpenClaw skills)..."
+ct_exec "
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get install -y build-essential procps file 2>&1 | grep -v -E 'Failed to write|Permission denied'
+
+    # Homebrew must be installed as a non-root user
+    useradd -m -s /bin/bash brewuser 2>/dev/null || true
+    echo 'brewuser ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/brewuser
+
+    # Install Homebrew as brewuser
+    su - brewuser -c 'NONINTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"' 2>&1 | tail -5
+
+    # Make brew available system-wide for root
+    echo 'eval \"\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"' >> /root/.bashrc
+    ln -sf /home/linuxbrew/.linuxbrew/bin/brew /usr/local/bin/brew
+"
+ok "Homebrew installed."
+
 info "Installing OpenClaw..."
 ct_exec "npm install -g openclaw@latest 2>&1 | tail -5"
 ok "OpenClaw installed."
