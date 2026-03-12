@@ -102,6 +102,16 @@ pct start <VMID>       # Start the container
 pct status <VMID>      # Check container status
 ```
 
+## Notes on the onboarding wizard
+
+When you run the **OpenClaw Setup Wizard** from the desktop shortcut, you may see two messages that look like errors but are perfectly normal:
+
+**"Gateway service install failed"** — The wizard tries to create its own systemd service for the gateway, but our script already set up `openclaw-gateway.service` and it's already running. This is safe to ignore.
+
+**"SECURITY ERROR: ws:// to a non-loopback address"** — This is a warning that the gateway uses unencrypted WebSocket over LAN. This is expected for a local setup. If you're on a trusted home or office network, it's completely fine.
+
+As long as you see your **channels connected**, a **Control UI URL**, and an **agent workspace** listed at the end of the wizard, everything worked.
+
 ## Troubleshooting
 
 **Service not starting?**
