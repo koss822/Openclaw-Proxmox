@@ -191,7 +191,7 @@ info "Installing XFCE4, TigerVNC, noVNC, Chromium, dbus-x11 (this takes a few mi
 ct_exec "
     export DEBIAN_FRONTEND=noninteractive
     export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
-    apt-get install -y xfce4 xfce4-terminal tigervnc-standalone-server novnc websockify chromium dbus-x11 2>&1 \
+    apt-get install -y xfce4 xfce4-terminal tigervnc-standalone-server novnc websockify chromium dbus-x11 fonts-noto-color-emoji 2>&1 \
         | grep -v -E 'Failed to write|Failed to send reload|Permission denied|Cannot set LC_'
 "
 ok "Desktop environment installed."
