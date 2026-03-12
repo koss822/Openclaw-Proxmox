@@ -231,6 +231,41 @@ WRAPPER
 "
 ok "Chromium patched."
 
+# ─── Create desktop shortcuts ────────────────────────────────────────────────
+info "Creating desktop shortcuts..."
+
+# OpenClaw Onboarding wizard (runs in terminal)
+ct_exec "cat > /root/Desktop/openclaw-onboard.desktop << 'SHORTCUT'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=OpenClaw Setup Wizard
+Comment=Run the OpenClaw onboarding wizard to configure your AI assistant
+Exec=xfce4-terminal --title \"OpenClaw Onboarding\" --hold -e \"openclaw onboard\"
+Icon=utilities-terminal
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+SHORTCUT
+chmod +x /root/Desktop/openclaw-onboard.desktop"
+
+# OpenClaw Dashboard (opens in Chromium with token)
+ct_exec "cat > /root/Desktop/openclaw-dashboard.desktop << SHORTCUT
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=OpenClaw Dashboard
+Comment=Open the OpenClaw Control UI in Chromium
+Exec=/usr/bin/chromium --no-sandbox http://127.0.0.1:18789/#token=${AUTH_TOKEN}
+Icon=web-browser
+Terminal=false
+Categories=Network;WebBrowser;
+StartupNotify=true
+SHORTCUT
+chmod +x /root/Desktop/openclaw-dashboard.desktop"
+
+ok "Desktop shortcuts created."
+
 # ─── Create systemd services ─────────────────────────────────────────────────
 info "Creating systemd services..."
 
