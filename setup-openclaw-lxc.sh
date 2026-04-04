@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# setup-openclaw-lxc-unprivileged.sh — Automated OpenClaw AI assistant setup in a Proxmox LXC container
+# setup-openclaw-lxc.sh — Automated OpenClaw AI assistant setup in a Proxmox LXC container
 #
 # Run this script directly on the Proxmox host.
 # It creates an UNPRIVILEGED Debian 13 LXC with nesting, installs OpenClaw + LXQt desktop +
