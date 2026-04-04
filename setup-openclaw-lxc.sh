@@ -414,6 +414,7 @@ Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 WorkingDirectory=/root
+Environment=DISPLAY=:1
 
 [Install]
 WantedBy=multi-user.target
