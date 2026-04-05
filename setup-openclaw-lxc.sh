@@ -9,11 +9,10 @@
 # Changes vs original:
 #   - unprivileged=1 + nesting=1
 #   - openclaw runs as dedicated non-root user 'openclaw'
-#   - Chrome runs as 'openclaw' user (no root, --no-sandbox still needed in LXC)
+#   - Chrome runs as 'openclaw' user (no root, no --no-sandbox needed)
 #   - VNC runs as 'openclaw' user
 #   - gateway systemd service runs as 'openclaw' with DISPLAY=:1
 #   - brewuser sudo scope limited to brew binary only
-#   - browser.noSandbox set in config automatically
 #   - removed broken 'openclaw browser extension install' call
 #
 
@@ -60,6 +59,12 @@ CORES="${CORES:-4}"
 
 read -rp "VNC resolution [1920x1080]: " VNC_RES
 VNC_RES="${VNC_RES:-1920x1080}"
+
+read -rp "Admin Linux username (full sudo, SSH key login): " ADMIN_USER
+[[ -n "$ADMIN_USER" ]] || fatal "Admin username cannot be empty."
+
+read -rp "SSH public key for ${ADMIN_USER} (paste full public key): " ADMIN_SSH_KEY
+[[ -n "$ADMIN_SSH_KEY" ]] || fatal "SSH public key cannot be empty."
 
 echo
 
@@ -176,7 +181,7 @@ info "Updating packages and installing prerequisites..."
 ct_exec "
     export DEBIAN_FRONTEND=noninteractive
 
-    apt-get update && apt-get install -y locales 2>&1 | grep -v 'Failed to write'
+    apt-get update && apt-get install -y locales openssh-server 2>&1 | grep -v 'Failed to write'
     sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen
     locale-gen en_US.UTF-8 >/dev/null 2>&1
     update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
@@ -200,6 +205,40 @@ SUDOERS
     chmod 440 /etc/sudoers.d/openclaw
 "
 ok "User 'openclaw' created."
+
+# ─── Create admin user ───────────────────────────────────────────────────────
+info "Creating admin user '${ADMIN_USER}'..."
+ct_exec "
+    useradd -m -s /bin/bash '${ADMIN_USER}' 2>/dev/null || true
+    echo '${ADMIN_USER}:${CT_PASSWORD}' | chpasswd
+
+    # Full passwordless sudo
+    cat > /etc/sudoers.d/${ADMIN_USER} << SUDOERS
+${ADMIN_USER} ALL=(ALL) NOPASSWD: ALL
+SUDOERS
+    chmod 440 /etc/sudoers.d/${ADMIN_USER}
+
+    # SSH public key
+    mkdir -p /home/${ADMIN_USER}/.ssh
+    chmod 700 /home/${ADMIN_USER}/.ssh
+    printf '%s\n' '${ADMIN_SSH_KEY}' > /home/${ADMIN_USER}/.ssh/authorized_keys
+    chmod 600 /home/${ADMIN_USER}/.ssh/authorized_keys
+    chown -R ${ADMIN_USER}:${ADMIN_USER} /home/${ADMIN_USER}/.ssh
+"
+ok "Admin user '${ADMIN_USER}' created with full sudo."
+
+# ─── Configure SSH ───────────────────────────────────────────────────────────
+info "Configuring SSH (disable password auth, enable key auth)..."
+ct_exec "
+    sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    # Ensure the directive exists if not already present
+    grep -q '^PasswordAuthentication' /etc/ssh/sshd_config || echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config
+    grep -q '^PubkeyAuthentication' /etc/ssh/sshd_config || echo 'PubkeyAuthentication yes' >> /etc/ssh/sshd_config
+    systemctl enable ssh
+    systemctl restart ssh
+"
+ok "SSH configured (password login disabled)."
 
 info "Installing Node.js 22..."
 ct_exec "
@@ -257,21 +296,13 @@ ok "Google Chrome installed."
 # ─── Configure Google Chrome ─────────────────────────────────────────────────
 info "Configuring Google Chrome..."
 ct_exec "
-    # In unprivileged LXC, Chrome still needs --no-sandbox due to missing kernel namespaces
-    sed -i 's|Exec=/usr/bin/google-chrome-stable|Exec=/usr/bin/google-chrome-stable --no-sandbox|g' \
-        /usr/share/applications/google-chrome.desktop
-
     mkdir -p /home/openclaw/Desktop
     cp /usr/share/applications/google-chrome.desktop /home/openclaw/Desktop/
     chmod +x /home/openclaw/Desktop/google-chrome.desktop
     chown openclaw:openclaw /home/openclaw/Desktop/google-chrome.desktop
 
-    # Wrapper so CLI calls also get --no-sandbox
-    cat > /usr/local/bin/google-chrome << 'WRAPPER'
-#!/bin/bash
-exec /usr/bin/google-chrome-stable --no-sandbox \"\$@\"
-WRAPPER
-    chmod +x /usr/local/bin/google-chrome
+    # Make google-chrome available as a command (points to stable binary)
+    ln -sf /usr/bin/google-chrome-stable /usr/local/bin/google-chrome 2>/dev/null || true
 
     update-alternatives --set x-www-browser /usr/bin/google-chrome-stable 2>/dev/null || true
     update-alternatives --set gnome-www-browser /usr/bin/google-chrome-stable 2>/dev/null || true
@@ -293,7 +324,6 @@ ct_exec_user "
     openclaw config set gateway.bind lan
     openclaw config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true
     openclaw config set gateway.auth.token '${AUTH_TOKEN}'
-    openclaw config set browser.noSandbox true
 "
 ok "OpenClaw configured (token: $AUTH_TOKEN)."
 
@@ -429,7 +459,7 @@ Version=1.0
 Type=Application
 Name=OpenClaw Dashboard
 Comment=Open the OpenClaw Control UI in Google Chrome
-Exec=google-chrome --no-sandbox http://127.0.0.1:18789/#token=${AUTH_TOKEN}
+Exec=google-chrome http://127.0.0.1:18789/#token=${AUTH_TOKEN}
 Icon=web-browser
 Terminal=false
 Categories=Network;WebBrowser;
@@ -558,7 +588,7 @@ echo -e "    VNC password: (same as container password)"
 echo -e "    User: openclaw (non-root)"
 echo
 echo -e "  ${BOLD}SSH:${NC}"
-echo -e "    ssh openclaw@${CT_IP}"
+echo -e "    ssh ${ADMIN_USER}@${CT_IP}  (key auth only, password login disabled)"
 echo
 echo -e "  ${BOLD}Manage container:${NC}"
 echo -e "    pct enter $VMID"
@@ -568,6 +598,8 @@ echo
 echo -e "  ${BOLD}Security notes:${NC}"
 echo -e "    - Container is unprivileged (nesting=1)"
 echo -e "    - OpenClaw runs as user 'openclaw', not root"
-echo -e "    - Chrome uses --no-sandbox (required in LXC)"
+echo -e "    - Chrome runs as 'openclaw' user (no --no-sandbox needed)"
+echo -e "    - SSH password login disabled, key auth only"
+echo -e "    - Admin user '${ADMIN_USER}' has full sudo"
 echo -e "    - brewuser sudo limited to brew binary only"
 echo

@@ -21,7 +21,7 @@ SSH into your Proxmox host and run:
 bash <(curl -fsSL https://raw.githubusercontent.com/adadrag/Openclaw-Proxmox/main/setup-openclaw-lxc.sh)
 ```
 
-That's it. The script will ask for a password, pick sensible defaults for everything else, and print your connection URLs when done.
+That's it. The script will ask for a password, admin username, and SSH public key, then pick sensible defaults for everything else and print your connection URLs when done.
 
 ### Alternative install methods
 
@@ -48,7 +48,7 @@ After the script finishes, you'll have a fully configured LXC container with:
 |------|---------------|
 | **OpenClaw Dashboard** | `http://<container-ip>:18789/#token=<your-token>` |
 | **Remote Desktop** | `http://<container-ip>:6080/vnc.html` |
-| **SSH** | `ssh root@<container-ip>` |
+| **SSH** | `ssh <admin-user>@<container-ip>` (key auth only) |
 
 The script prints all of this (including the token) at the end.
 
@@ -73,11 +73,13 @@ The script prompts you interactively (all optional except password):
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| Password | *(required)* | Container root password (also used for VNC) |
+| Password | *(required)* | Container root + openclaw user password (also used for VNC) |
 | Disk size | 32 GB | Container root filesystem size |
 | Memory | 4096 MB | RAM allocation |
 | CPU cores | 4 | Number of CPU cores |
 | VNC resolution | 1920x1080 | Remote desktop resolution |
+| Admin username | *(required)* | Linux user with full passwordless sudo (separate from `openclaw` service account) |
+| SSH public key | *(required)* | Public key for the admin user; password SSH login is disabled |
 
 Everything else is auto-detected — VMID, storage, networking (DHCP).
 
@@ -85,7 +87,7 @@ Everything else is auto-detected — VMID, storage, networking (DHCP).
 
 All inside the container (nothing is installed on the Proxmox host):
 
-- **Debian 13** LXC (privileged)
+- **Debian 13** LXC (unprivileged, nesting enabled)
 - **Node.js 22** + **OpenClaw**
 - **Homebrew** (for OpenClaw skills)
 - **LXQt** desktop + **TigerVNC** + **noVNC**
