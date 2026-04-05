@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# setup-openclaw-lxc-unprivileged.sh — Automated OpenClaw AI assistant setup in a Proxmox LXC container
+# setup-openclaw-lxc.sh — Automated OpenClaw AI assistant setup in an unprivileged Proxmox LXC container
 #
 # Run this script directly on the Proxmox host.
 # It creates an UNPRIVILEGED Debian 13 LXC with nesting, installs OpenClaw + LXQt desktop +
@@ -419,7 +419,7 @@ StartupNotify=true
 SHORTCUT
 
     chown -R openclaw:openclaw /home/openclaw/Desktop
-    chmod +x /home/openclaw/Desktop/*.desktop
+    chmod -x /home/openclaw/Desktop/*.desktop
 "
 
 # Dashboard shortcut (AUTH_TOKEN interpolated on host side)
@@ -435,10 +435,21 @@ Terminal=false
 Categories=Network;WebBrowser;
 StartupNotify=true
 SHORTCUT
-chmod +x /home/openclaw/Desktop/openclaw-dashboard.desktop
+chmod -x /home/openclaw/Desktop/openclaw-dashboard.desktop
 chown openclaw:openclaw /home/openclaw/Desktop/openclaw-dashboard.desktop"
 
-ok "Desktop shortcuts created."
+# Mark all desktop files as trusted so PCManFM-Qt opens them directly
+# without showing the "window manager" prompt
+ct_exec "
+    apt-get install -y gvfs-bin 2>/dev/null || true
+    for f in /home/openclaw/Desktop/*.desktop; do
+        gio set \"\$f\" metadata::trusted true 2>/dev/null || \
+        attr -s metadata::trusted -V true \"\$f\" 2>/dev/null || true
+    done
+    chown -R openclaw:openclaw /home/openclaw/Desktop
+"
+
+ok "Desktop shortcuts created (trusted, no +x)."
 
 # ─── Create systemd services ─────────────────────────────────────────────────
 info "Creating systemd services..."
