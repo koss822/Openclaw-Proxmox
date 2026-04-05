@@ -298,7 +298,6 @@ info "Configuring Google Chrome..."
 ct_exec "
     mkdir -p /home/openclaw/Desktop
     cp /usr/share/applications/google-chrome.desktop /home/openclaw/Desktop/
-    chmod +x /home/openclaw/Desktop/google-chrome.desktop
     chown openclaw:openclaw /home/openclaw/Desktop/google-chrome.desktop
 
     # Make google-chrome available as a command (points to stable binary)
@@ -449,7 +448,7 @@ StartupNotify=true
 SHORTCUT
 
     chown -R openclaw:openclaw /home/openclaw/Desktop
-    chmod -x /home/openclaw/Desktop/*.desktop
+    chmod +x /home/openclaw/Desktop/*.desktop
 "
 
 # Dashboard shortcut (AUTH_TOKEN interpolated on host side)
@@ -465,21 +464,13 @@ Terminal=false
 Categories=Network;WebBrowser;
 StartupNotify=true
 SHORTCUT
-chmod -x /home/openclaw/Desktop/openclaw-dashboard.desktop
+chmod +x /home/openclaw/Desktop/openclaw-dashboard.desktop
 chown openclaw:openclaw /home/openclaw/Desktop/openclaw-dashboard.desktop"
 
-# Mark all desktop files as trusted so PCManFM-Qt opens them directly
-# without showing the "window manager" prompt
-ct_exec "
-    apt-get install -y gvfs-bin 2>/dev/null || true
-    for f in /home/openclaw/Desktop/*.desktop; do
-        gio set \"\$f\" metadata::trusted true 2>/dev/null || \
-        attr -s metadata::trusted -V true \"\$f\" 2>/dev/null || true
-    done
-    chown -R openclaw:openclaw /home/openclaw/Desktop
-"
-
-ok "Desktop shortcuts created (trusted, no +x)."
+# Mark desktop files as trusted — dbus-launch spawns a temporary bus and auto-activates
+# gvfsd-metadata, so this works at install time without a running VNC session
+ct_exec "su - openclaw -c 'for f in /home/openclaw/Desktop/*.desktop; do dbus-launch gio set \"\$f\" metadata::trust true; done' 2>/dev/null || true"
+ok "Desktop shortcuts created and marked trusted."
 
 # ─── Create systemd services ─────────────────────────────────────────────────
 info "Creating systemd services..."
