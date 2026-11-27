@@ -88,7 +88,7 @@ Everything else is auto-detected — VMID, storage, networking (DHCP).
 All inside the container (nothing is installed on the Proxmox host):
 
 - **Debian 13** LXC (unprivileged, nesting enabled)
-- **Node.js 22** + **OpenClaw**
+- **Node.js 24** + **OpenClaw**
 - **Homebrew** (for OpenClaw skills)
 - **LXQt** desktop + **TigerVNC** + **noVNC**
 - **Google Chrome** (with OpenClaw browser extension)

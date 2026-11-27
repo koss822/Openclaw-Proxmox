@@ -12,7 +12,7 @@
 #   - Chrome runs as 'openclaw' user (no root, no --no-sandbox needed)
 #   - VNC runs as 'openclaw' user
 #   - gateway systemd service runs as 'openclaw' with DISPLAY=:1
-#   - brewuser sudo scope limited to brew binary only
+#   - Homebrew prefix owned by openclaw (brew refuses to run as root)
 #   - removed broken 'openclaw browser extension install' call
 #
 
@@ -240,10 +240,10 @@ ct_exec "
 "
 ok "SSH configured (password login disabled)."
 
-info "Installing Node.js 22..."
+info "Installing Node.js 24..."
 ct_exec "
     export DEBIAN_FRONTEND=noninteractive
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -3
+    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - 2>&1 | tail -3
     apt-get install -y nodejs 2>&1 | grep -v 'Failed to write'
 "
 ok "Node.js installed."
@@ -253,24 +253,26 @@ ct_exec "
     export DEBIAN_FRONTEND=noninteractive
     apt-get install -y build-essential procps file 2>&1 | grep -v -E 'Failed to write|Permission denied'
 
-    # Create brewuser with sudo limited to brew binary only
-    useradd -m -s /bin/bash brewuser 2>/dev/null || true
-    cat > /etc/sudoers.d/brewuser << 'SUDOERS'
-brewuser ALL=(ALL) NOPASSWD: /home/linuxbrew/.linuxbrew/bin/brew
-SUDOERS
-    chmod 440 /etc/sudoers.d/brewuser
+    # Homebrew refuses to run as root and its installer needs sudo to create the prefix,
+    # so pre-create the prefix owned by 'openclaw' (the user that installs skills).
+    mkdir -p /home/linuxbrew/.linuxbrew
+    chown -R openclaw:openclaw /home/linuxbrew
 
-    su - brewuser -c 'NONINTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"' 2>&1 | tail -5
+    su - openclaw -c 'NONINTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"' 2>&1 | tail -5
+    [ -x /home/linuxbrew/.linuxbrew/bin/brew ] || { echo 'Homebrew install failed' >&2; exit 1; }
 
     # Make brew available system-wide
     echo '[ -x /home/linuxbrew/.linuxbrew/bin/brew ] && eval \"\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"' >> /home/openclaw/.bashrc
     echo '[ -x /home/linuxbrew/.linuxbrew/bin/brew ] && eval \"\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"' >> /root/.bashrc
-    ln -sf /home/linuxbrew/.linuxbrew/bin/brew /usr/local/bin/brew
+    # A symlink makes brew derive the wrong prefix (/usr/local), so use a wrapper
+    printf '%s\\n' '#!/bin/sh' 'exec /home/linuxbrew/.linuxbrew/bin/brew \"\$@\"' > /usr/local/bin/brew
+    chmod 755 /usr/local/bin/brew
 "
 ok "Homebrew installed."
 
 info "Installing OpenClaw..."
-ct_exec "npm install -g openclaw@latest 2>&1 | tail -5"
+# npm 11 blocks dependency install scripts unless allowed; OpenClaw needs its postinstall
+ct_exec "set -o pipefail; npm install -g --allow-scripts=@google/genai,esbuild,protobufjs,openclaw openclaw@latest 2>&1 | tail -5"
 # Make openclaw binary accessible to openclaw user
 ct_exec "ln -sf \$(which openclaw) /usr/local/bin/openclaw 2>/dev/null || true"
 ok "OpenClaw installed."
@@ -489,6 +491,7 @@ Group=openclaw
 Environment=NODE_ENV=production
 Environment=DISPLAY=:1
 Environment=HOME=/home/openclaw
+Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 WorkingDirectory=/home/openclaw
 ExecStart=/usr/local/bin/openclaw gateway run --bind lan --auth token
 Restart=always
@@ -592,5 +595,5 @@ echo -e "    - OpenClaw runs as user 'openclaw', not root"
 echo -e "    - Chrome runs as 'openclaw' user (no --no-sandbox needed)"
 echo -e "    - SSH password login disabled, key auth only"
 echo -e "    - Admin user '${ADMIN_USER}' has full sudo"
-echo -e "    - brewuser sudo limited to brew binary only"
+echo -e "    - Homebrew owned by openclaw user (no sudo)"
 echo
