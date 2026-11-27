@@ -271,10 +271,16 @@ ct_exec "
 ok "Homebrew installed."
 
 info "Installing OpenClaw..."
-# npm 11 blocks dependency install scripts unless allowed; OpenClaw needs its postinstall
-ct_exec "set -o pipefail; npm install -g --allow-scripts=@google/genai,esbuild,protobufjs,openclaw openclaw@latest 2>&1 | tail -5"
-# Make openclaw binary accessible to openclaw user
-ct_exec "ln -sf \$(which openclaw) /usr/local/bin/openclaw 2>/dev/null || true"
+# Install into openclaw's own npm prefix so 'openclaw update' can write its install root.
+# npm 11 blocks dependency install scripts unless allowed; OpenClaw needs its postinstall.
+ct_exec_user "set -eo pipefail
+    npm config set prefix ~/.npm-global
+    npm install -g --allow-scripts=@google/genai,esbuild,protobufjs,openclaw openclaw@latest 2>&1 | tail -5"
+ct_exec "
+    echo 'export PATH=\$HOME/.npm-global/bin:\$PATH' >> /home/openclaw/.profile
+    echo 'export PATH=\$HOME/.npm-global/bin:\$PATH' >> /home/openclaw/.bashrc
+    ln -sf /home/openclaw/.npm-global/bin/openclaw /usr/local/bin/openclaw
+"
 ok "OpenClaw installed."
 
 info "Installing LXQt, TigerVNC, noVNC (this takes a few minutes)..."
